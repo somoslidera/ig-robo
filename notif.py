@@ -47,8 +47,8 @@ for u in novos:
     r = urllib.request.Request(URL + "/functions/v1/ig-api/lead/pesquisar", data=json.dumps({"conta_id": conta_id, "username": u, "fluxo": "NS", "sinal": "novo seguidor (notificações " + hoje + ")"}).encode(), headers={"x-cron": CRON, "Content-Type": "application/json"}, method="POST")
     try:
         with urllib.request.urlopen(r, timeout=120) as resp: j = json.loads(resp.read().decode())
-        icp = (j.get("ia") or {}).get("icp", "?"); feitos.append(f"@{u} ({icp})")
-        if j.get("lead_id"): req("PATCH", f"/rest/v1/ig_seguidores?conta_id=eq.{conta_id}&username=eq.{u}", {"lead_id": j["lead_id"]})
+        ia = j.get("ia") if isinstance(j, dict) else {}; icp = (ia if isinstance(ia, dict) else {}).get("icp", "?"); feitos.append(f"@{u} ({icp})")
+        if isinstance(j, dict) and j.get("lead_id"): req("PATCH", f"/rest/v1/ig_seguidores?conta_id=eq.{conta_id}&username=eq.{u}", {"lead_id": j["lead_id"]})
     except Exception as e: feitos.append(f"@{u} (erro: {str(e)[:60]})")
     time.sleep(2)
 print(f"Seguidores no texto: {len(seg)} · novos: {len(novos)} · leads criados/pesquisados: {len(feitos)}")
