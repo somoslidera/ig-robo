@@ -31,6 +31,7 @@ INTERVAL = int(os.environ.get("ROBO_INTERVAL_MIN", "15"))
 HORA_INI = int(os.environ.get("ROBO_HORA_INI", "8"))
 HORA_FIM = int(os.environ.get("ROBO_HORA_FIM", "20"))
 ACCOUNTS = json.loads(os.environ.get("IG_ACCOUNTS", "[]"))
+PROXY = os.environ.get("IG_PROXY", "")  # ex.: http://user:pass@host:port (residencial/móvel)
 DATA = Path(os.environ.get("ROBO_DATA", "/data"))
 (DATA / "sessions").mkdir(parents=True, exist_ok=True)
 
@@ -107,12 +108,16 @@ def cliente(acc) -> Client | None:
     u = acc["username"]
     if u in clients: return clients[u]
     cl = Client(); cl.delay_range = [2, 6]
+    if PROXY: cl.set_proxy(PROXY)
     path = DATA / "sessions" / f"{u}.json"
     try:
         if path.exists():
             cl.load_settings(path)
-            cl.login(u, acc["password"])  # com settings carregados, reaproveita a sessão
-            cl.get_timeline_feed()
+            try:
+                cl.get_timeline_feed()  # sessão importada/salva ainda vale? então nem tenta login
+            except Exception:
+                cl.login(u, acc["password"])
+                cl.get_timeline_feed()
         else:
             cl.login(u, acc["password"])
         cl.dump_settings(path); clients[u] = cl
@@ -314,6 +319,17 @@ async def dois_fa(req: Request, x_robo: str = Header(default="")):
     cl.login(u, acc["password"], verification_code=code)
     cl.dump_settings(DATA / "sessions" / f"{u}.json"); clients[u] = cl; pending_2fa.pop(u, None)
     log("robo", acc["conta_id"], {"login": "ok com 2FA"})
+    return {"ok": True}
+
+@app.post("/sessao")
+async def sessao(req: Request, x_robo: str = Header(default="")):
+    """Recebe o JSON de settings do instagrapi gerado em outro lugar (ex.: no Mac, IP residencial)."""
+    auth(x_robo); b = await req.json(); u = b.get("username"); settings = b.get("settings")
+    if not u or not settings: raise HTTPException(400, "username e settings")
+    (DATA / "sessions" / f"{u}.json").write_text(json.dumps(settings))
+    clients.pop(u, None)
+    acc = next((a for a in ACCOUNTS if a["username"] == u), None)
+    if acc: log("robo", acc["conta_id"], {"sessao": "importada"})
     return {"ok": True}
 
 @app.post("/pausar")
