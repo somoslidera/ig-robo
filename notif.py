@@ -8,8 +8,12 @@ env = {}
 for ln in pathlib.Path(__file__).with_name(".env").read_text().splitlines():
     if "=" in ln and not ln.startswith("#"): k, v = ln.split("=", 1); env[k.strip()] = v.strip()
 URL, KEY, CRON = env["SUPABASE_URL"], env["SUPABASE_SERVICE_KEY"], env["IG_CRON_SECRET"]
-conta_id = sys.argv[1]
-txt = pathlib.Path(sys.argv[2]).read_text() if len(sys.argv) > 2 else sys.stdin.read()
+args = [a for a in sys.argv[1:] if not a.startswith("--")]
+LISTAR = "--listar" in sys.argv          # só imprime os novos, sem criar lead (fase 1)
+PERFIS = None                             # pasta com <username>.txt (texto da página do perfil) para a triagem (fase 2)
+if "--perfis" in sys.argv: PERFIS = pathlib.Path(sys.argv[sys.argv.index("--perfis") + 1])
+conta_id = args[0]
+txt = pathlib.Path(args[1]).read_text() if len(args) > 1 else sys.stdin.read()
 
 def req(method, path, body=None, headers=None):
     h = {"apikey": KEY, "Authorization": "Bearer " + KEY, "Content-Type": "application/json", "Prefer": "return=representation"}
@@ -35,6 +39,8 @@ if not seg: print("Nenhum 'começou a seguir você' no texto."); sys.exit(0)
 ex = req("GET", f"/rest/v1/ig_seguidores?conta_id=eq.{conta_id}&username=in.({','.join(seg)})&select=username")
 exset = {x["username"] for x in ex}
 novos = [u for u in seg if u not in exset]
+if LISTAR:
+    print("\n".join(novos)); sys.exit(0)
 req("POST", "/rest/v1/ig_seguidores?on_conflict=conta_id,username",
     [{"conta_id": conta_id, "username": u, "ultimo_em": hoje, **({} if u in exset else {"primeiro_em": hoje})} for u in seg],
     {"Prefer": "resolution=merge-duplicates,return=representation"})
@@ -44,7 +50,7 @@ ja = {l["username"] for l in leads}
 feitos = []
 for u in novos:
     if u in ja: continue
-    r = urllib.request.Request(URL + "/functions/v1/ig-api/lead/pesquisar", data=json.dumps({"conta_id": conta_id, "username": u, "fluxo": "NS", "sinal": "novo seguidor (notificações " + hoje + ")"}).encode(), headers={"x-cron": CRON, "Content-Type": "application/json"}, method="POST")
+    r = urllib.request.Request(URL + "/functions/v1/ig-api/lead/pesquisar", data=json.dumps({"conta_id": conta_id, "username": u, "fluxo": "NS", "sinal": "novo seguidor (notificações " + hoje + ")", **({"perfil_texto": (PERFIS / f"{u}.txt").read_text()[:5000]} if PERFIS and (PERFIS / f"{u}.txt").exists() else {})}).encode(), headers={"x-cron": CRON, "Content-Type": "application/json"}, method="POST")
     try:
         with urllib.request.urlopen(r, timeout=120) as resp: j = json.loads(resp.read().decode())
         ia = j.get("ia") if isinstance(j, dict) else {}; icp = (ia if isinstance(ia, dict) else {}).get("icp", "?"); feitos.append(f"@{u} ({icp})")
