@@ -114,11 +114,13 @@ def cliente(acc) -> Client | None:
         if path.exists():
             cl.load_settings(path)
             try:
-                cl.get_timeline_feed()  # sessão importada/salva ainda vale? então nem tenta login
+                cl.account_info()  # sessão importada/salva ainda vale? então nem tenta login
             except Exception:
+                if not acc.get("password"): raise LoginRequired("sessão expirou; gere outra com login_local.py")
                 cl.login(u, acc["password"])
-                cl.get_timeline_feed()
+                cl.account_info()
         else:
+            if not acc.get("password"): raise LoginRequired("sem sessão; gere com login_local.py")
             cl.login(u, acc["password"])
         cl.dump_settings(path); clients[u] = cl
         log("robo", acc["conta_id"], {"login": "ok", "username": u})
