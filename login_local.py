@@ -18,7 +18,7 @@ if not ROBO_SECRET: ROBO_SECRET = getpass.getpass("ROBO_SECRET: ").strip()
 print("Robô:", ROBO_URL)
 u = (input("Usuário do Instagram [lidera.food]: ").strip().lstrip("@") or "lidera.food")
 p = getpass.getpass("Senha do Instagram: ")
-cl = Client(); cl.delay_range = [1, 3]
+cl = Client(); cl.delay_range = [1, 3]; cl.set_user_agent('Instagram 382.0.0.44.76 Android (34/14; 480dpi; 1080x2340; samsung; SM-S918B; dm3q; qcom; pt_BR; 735618641)')
 try:
     cl.login(u, p)
 except TwoFactorRequired:

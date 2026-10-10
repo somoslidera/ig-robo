@@ -107,7 +107,7 @@ def pausar(conta_id, horas, motivo):
 def cliente(acc) -> Client | None:
     u = acc["username"]
     if u in clients: return clients[u]
-    cl = Client(); cl.delay_range = [2, 6]
+    cl = Client(); cl.delay_range = [2, 6]; cl.set_user_agent(os.environ.get('IG_USER_AGENT') or 'Instagram 382.0.0.44.76 Android (34/14; 480dpi; 1080x2340; samsung; SM-S918B; dm3q; qcom; pt_BR; 735618641)')
     if PROXY: cl.set_proxy(PROXY)
     path = DATA / "sessions" / f"{u}.json"
     try:
