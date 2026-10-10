@@ -115,10 +115,10 @@ def cliente(acc) -> Client | None:
             cl.load_settings(path)
             try:
                 cl.account_info()  # sessão importada/salva ainda vale? então nem tenta login
-            except Exception:
-                if not acc.get("password"): raise LoginRequired("sessão expirou; gere outra com login_local.py")
-                cl.login(u, acc["password"])
-                cl.account_info()
+            except Exception as e_sess:
+                # a sessão veio do navegador; login por senha está bloqueado pelo Instagram, não insistir
+                log("erro", acc["conta_id"], {"onde": "sessao", "tipo": type(e_sess).__name__, "erro": str(e_sess)[:400]})
+                raise LoginRequired(f"sessão inválida no servidor: {type(e_sess).__name__}: {str(e_sess)[:120]}")
         else:
             if not acc.get("password"): raise LoginRequired("sem sessão; gere com login_local.py")
             cl.login(u, acc["password"])
@@ -130,8 +130,8 @@ def cliente(acc) -> Client | None:
         alerta(f"@{u}: Instagram pediu código 2FA. Envie com POST /2fa {{username, code}}.", acc["conta_id"])
         return None
     except (ChallengeRequired, LoginRequired) as e:
-        pausar(acc["conta_id"], 24, f"login: {type(e).__name__}")
-        if path.exists(): path.unlink()
+        # não apaga a sessão nem pausa 24 h: só avisa; o próximo ciclo tenta de novo
+        alerta(f"@{u}: {type(e).__name__}: {str(e)[:160]}", acc["conta_id"])
         return None
     except Exception as e:
         log("erro", acc["conta_id"], {"onde": "login", "erro": str(e)[:300]})
