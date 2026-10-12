@@ -41,9 +41,9 @@ exset = {x["username"] for x in ex}
 novos = [u for u in seg if u not in exset]
 if LISTAR:
     print("\n".join(novos)); sys.exit(0)
-req("POST", "/rest/v1/ig_seguidores?on_conflict=conta_id,username",
-    [{"conta_id": conta_id, "username": u, "ultimo_em": hoje, **({} if u in exset else {"primeiro_em": hoje})} for u in seg],
-    {"Prefer": "resolution=merge-duplicates,return=representation"})
+if novos: req("POST", "/rest/v1/ig_seguidores?on_conflict=conta_id,username", [{"conta_id": conta_id, "username": u, "ultimo_em": hoje, "primeiro_em": hoje} for u in novos], {"Prefer": "resolution=merge-duplicates,return=representation"})
+velhos = [u for u in seg if u in exset]
+if velhos: req("POST", "/rest/v1/ig_seguidores?on_conflict=conta_id,username", [{"conta_id": conta_id, "username": u, "ultimo_em": hoje} for u in velhos], {"Prefer": "resolution=merge-duplicates,return=representation"})
 # já existe lead?
 leads = req("GET", f"/rest/v1/ig_leads?conta_id=eq.{conta_id}&username=in.({','.join(novos) or 'x'})&select=username") if novos else []
 ja = {l["username"] for l in leads}
