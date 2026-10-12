@@ -57,5 +57,6 @@ for u in novos:
         if isinstance(j, dict) and j.get("lead_id"): req("PATCH", f"/rest/v1/ig_seguidores?conta_id=eq.{conta_id}&username=eq.{u}", {"lead_id": j["lead_id"]})
     except Exception as e: feitos.append(f"@{u} (erro: {str(e)[:60]})")
     time.sleep(2)
+req("POST", "/rest/v1/ig_log", [{"tipo": "captura", "conta_id": conta_id, "detalhe": {"seguidores_no_texto": len(seg), "novos": len(novos), "pesquisados": len(feitos)}}])
 print(f"Seguidores no texto: {len(seg)} · novos: {len(novos)} · leads criados/pesquisados: {len(feitos)}")
 for f in feitos: print(" -", f)
