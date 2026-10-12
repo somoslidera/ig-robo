@@ -39,8 +39,13 @@ if not seg: print("Nenhum 'começou a seguir você' no texto."); sys.exit(0)
 ex = req("GET", f"/rest/v1/ig_seguidores?conta_id=eq.{conta_id}&username=in.({','.join(seg)})&select=username")
 exset = {x["username"] for x in ex}
 novos = [u for u in seg if u not in exset]
+# leads já existentes mas sem perfil lido (triagem feita às cegas): entram de novo para ler o perfil e re-triar
+sem_perfil = []
+if seg:
+    rows = req("GET", f"/rest/v1/ig_leads?conta_id=eq.{conta_id}&username=in.({','.join(seg)})&fluxo=eq.NS&select=username,perfil,sinal_calor")
+    sem_perfil = [r["username"] for r in rows if not (r.get("perfil") or {}).get("texto") and not (r.get("perfil") or {}).get("biography") and r.get("sinal_calor") != "CONCORRENTE"]
 if LISTAR:
-    print("\n".join(novos)); sys.exit(0)
+    print("\n".join(dict.fromkeys(novos + sem_perfil))); sys.exit(0)
 if novos: req("POST", "/rest/v1/ig_seguidores?on_conflict=conta_id,username", [{"conta_id": conta_id, "username": u, "ultimo_em": hoje, "primeiro_em": hoje} for u in novos], {"Prefer": "resolution=merge-duplicates,return=representation"})
 velhos = [u for u in seg if u in exset]
 if velhos: req("POST", "/rest/v1/ig_seguidores?on_conflict=conta_id,username", [{"conta_id": conta_id, "username": u, "ultimo_em": hoje} for u in velhos], {"Prefer": "resolution=merge-duplicates,return=representation"})
@@ -48,8 +53,8 @@ if velhos: req("POST", "/rest/v1/ig_seguidores?on_conflict=conta_id,username", [
 leads = req("GET", f"/rest/v1/ig_leads?conta_id=eq.{conta_id}&username=in.({','.join(novos) or 'x'})&select=username") if novos else []
 ja = {l["username"] for l in leads}
 feitos = []
-for u in novos:
-    if u in ja: continue
+fila = [u for u in novos if u not in ja] + [u for u in sem_perfil if PERFIS and (PERFIS / f"{u}.txt").exists()]
+for u in dict.fromkeys(fila):
     r = urllib.request.Request(URL + "/functions/v1/ig-api/lead/pesquisar", data=json.dumps({"conta_id": conta_id, "username": u, "fluxo": "NS", "sinal": "novo seguidor (notificações " + hoje + ")", **({"perfil_texto": (PERFIS / f"{u}.txt").read_text()[:5000]} if PERFIS and (PERFIS / f"{u}.txt").exists() else {})}).encode(), headers={"x-cron": CRON, "Content-Type": "application/json"}, method="POST")
     try:
         with urllib.request.urlopen(r, timeout=120) as resp: j = json.loads(resp.read().decode())
